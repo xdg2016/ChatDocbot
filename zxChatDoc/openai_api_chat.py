@@ -1,6 +1,6 @@
 import time
 import json
-
+import os
 import requests
 
 
@@ -26,8 +26,8 @@ def test_request(text,paragraph):
 
     data={}
     messages = []
-
-    with open("sysinfo.json", 'r',encoding="utf-8") as f:
+    sysinfo_path = os.path.join(os.path.dirname(__file__),"sysinfo.json")
+    with open(sysinfo_path, 'r',encoding="utf-8") as f:
       sysinfo = json.load(f)['info']
     sysinfo += paragraph
     messages.append({'role':'system', 'content':sysinfo})

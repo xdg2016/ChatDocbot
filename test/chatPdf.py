@@ -8,9 +8,9 @@ import openai
 import gradio as gr
 import os
 from sklearn.neighbors import NearestNeighbors
-from test_azure_openai_api_chatcompletions import OPENAI_API_KEY1,test_request
+from zxChatDoc.openai_api_chat import OPENAI_API_KEY1,test_request
 import json
-import test_embeddings
+import zxChatDoc.openai_api_embedding as openai_api_embedding
 from sklearn.metrics.pairwise import cosine_similarity
 
 def preprocess(text):
@@ -57,7 +57,7 @@ class SemanticSearch:
     
     def __init__(self):
         # self.predictor = TextFeatureExtractor(task_name="simbert-base-chinese",device="cpu")
-        self.predictor = test_embeddings.test_request
+        self.predictor = openai_api_embedding.test_request
         self.fitted = False
     
     
@@ -175,3 +175,6 @@ def question_answer(file, question):
 
 recommender = SemanticSearch()
 
+'''
+原始代码：huggingface.co/spaces/bhaskartripathi/pdfChatter/blob/main/app.py
+'''

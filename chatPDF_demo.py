@@ -8,9 +8,9 @@ import openai
 import gradio as gr
 import os
 from sklearn.neighbors import NearestNeighbors
-from test_azure_openai_api_chatcompletions import OPENAI_API_KEY1,test_request
+from zxChatDoc.openai_api_chat import OPENAI_API_KEY1,test_request
 import json
-import test_embeddings
+import zxChatDoc.openai_api_embedding as openai_api_embedding
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
@@ -72,7 +72,7 @@ class SemanticSearch:
     
     def __init__(self):
         # self.feature_extractor = TextFeatureExtractor(task_name="simbert-base-chinese",device="cpu")
-        self.predictor = test_embeddings.test_request
+        self.predictor = openai_api_embedding.test_request
         self.fitted = False
     
     def fit(self, data, batch=16, n_neighbors=5):
@@ -236,7 +236,7 @@ if __name__ == '__main__':
     title = 'PDF信息查询'
     description = """上传PDF,根据文档内容查询答案"""
     split_rules = {"按字数切分":"word_count", "按行切分":"line"}
-    init_message = """欢迎使用 ChatPDF，请在上传文件后提问 """
+    init_message = """欢迎使用 PDFbot，请在上传文件后提问 """
     with gr.Blocks() as demo:
         gr.Markdown(f'<center><h1>{title}</h1></center>')
         gr.Markdown(f"<h5>{description}</h5>")
