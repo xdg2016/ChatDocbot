@@ -25,12 +25,17 @@ class ChatDoc():
         '''
         # 加载文档
         corpus = self.load_doc_files(doc_file)
+        if corpus is None or len(corpus) == 0:
+            return {"status":"error","message":"文档为空！"}
         # 文档切块
         self.data = self.corpus_to_chunks(corpus)
         # 构建特征库
         self.embeddings = self.get_trucks_embeddings(self.data)
+        if self.embeddings is None:
+            return {"status":"error","message":"生成向量库失败！"}
         self.save_vectors_base(kb_name)
         self.init_vectors = True
+        return {"status":"sucess","message":"向量库生成成功！"}
 
     def save_vectors_base(self, kb_name: str):
         '''
@@ -110,14 +115,18 @@ class ChatDoc():
                 _retry = False
                 try:
                     emb_batch = self.embed(text_batch)
+                    if type(emb_batch) != np.ndarray:
+                        raise Exception("emb_batch is not np.ndarray")
                 except Exception as e:
                     if _rerty_count < 5:
                         _retry = True
                         _rerty_count += 1
                         continue
-            embeddings.append(emb_batch)
-        embeddings = np.vstack(embeddings)
-        return embeddings
+            if type(emb_batch) == np.ndarray:
+                embeddings.append(emb_batch)
+        if len(embeddings) > 0: 
+            embeddings = np.vstack(embeddings)
+        return np.array(embeddings)
     
     def get_topk_trucks(self,question,topn):
         '''

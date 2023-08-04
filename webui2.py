@@ -29,7 +29,7 @@ def question_answer(kb_name, question,chatbot,topn):
         print("加载知识库...")
         doc_chatter.load_vectors_base(kb_name)
     if len(question) == 0:
-        chatbot += [(None,'[错误]: 输入的问题为空！')]
+        chatbot += [(None,'输入的问题为空！')]
         return chatbot,gr.update(value="", interactive=True)
     
     answer = doc_chatter.query(question,topn)
@@ -64,24 +64,28 @@ def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
     else:
         print("处理文档...")
         doc_chatter.max_word_count = int(chunk_size)
-        doc_chatter.add_vectors_base(kb_name,file.name)
-        vs_status = f"知识库{kb_name}已创建，请开始提问！"
+        info = doc_chatter.add_vectors_base(kb_name,file.name)
+        if info['status'] == "sucess":
+            vs_status = f"知识库《{kb_name}》已创建，请开始提问！"
+        else:
+            vs_status = f"知识库《{kb_name}》创建失败，错误信息：{info['message']}，请重新创建！"
+
         print(vs_status)
         chatbot.pop()
         chatbot+= [(None,vs_status)]
-        return chatbot, gr.update(choices=get_vs_list(),value=kb_name)
+        return chatbot, gr.update(choices=get_vs_list(),value=kb_name),None
     chatbot += [[None, vs_status]]
-    return chatbot,refresh_vs_list()
+    return chatbot,refresh_vs_list(),None
 
 def del_knowledge_base(kb_name,chatbot):
     '''
     删除知识库
     '''
     if kb_name is None or kb_name.strip() == "":
-        chatbot+= [(None,"已有知识库为空，请创建新的知识库！")]
+        chatbot+= [(None,"知识库为空，请创建新的知识库！")]
         return chatbot,refresh_vs_list()
     doc_chatter.del_vectors_base(kb_name)
-    vs_status = f"已删除知识库:{kb_name}"
+    vs_status = f"已删除知识库:《{kb_name}》"
     chatbot+= [(None,vs_status)]
     return chatbot,gr.update(choices=get_vs_list(),value= get_vs_list()[0] if len(get_vs_list()) > 0 else None)
 
@@ -93,7 +97,7 @@ def change_knowledge_base(kb_name,chatbot):
         chatbot+= [(None,"已有知识库为空，请创建新的知识库！")]
         return chatbot
     doc_chatter.load_vectors_base(kb_name)
-    vs_status = f"知识库切换为:{kb_name}"
+    vs_status = f"知识库切换为:《{kb_name}》"
     chatbot+= [(None,vs_status)]
     return chatbot
 
@@ -127,7 +131,7 @@ if __name__ == '__main__':
                                                 interactive=True,
                                                 value=get_vs_list()[0] if len(get_vs_list()) > 0 else None
                                                 )
-                    topn = gr.Slider(3, 10, step=1,value=5,label="搜索数量")
+                    topn = gr.Slider(3, 10, step=1,value=TOPK,label="搜索数量")
                     del_kb = gr.Button("删除当前知识库")
                     del_kb.click(fn=del_knowledge_base,
                                     inputs=[select_vs, chatbot],
@@ -140,9 +144,9 @@ if __name__ == '__main__':
                     kb_name = gr.Textbox(label="知识库名称")
                     file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
                     # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
-                    max_word_count = gr.Textbox(label='最大分割字数',value=300)
+                    max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
                     new_kb_btn = gr.Button('新建知识库')
-                    new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs])
+                    new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
 
         # 触发事件
         query.submit(add_text2,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[select_vs,query,chatbot,topn],outputs=[chatbot,query],queue=False)
