@@ -1,3 +1,6 @@
+import os
+from zxChatDoc.config import *
+
 def extract_text_from_pdf(file_path: str):
     """提取pdf文档的文本内容"""
     import PyPDF2
@@ -42,3 +45,11 @@ def extract_text_from_markdown(file_path: str):
     soup = BeautifulSoup(html, 'html.parser')
     contents = [text.strip() for text in soup.get_text().splitlines() if text.strip()]
     return contents
+
+def get_kb_embedding_path(file_name):
+    vs_name = os.path.splitext(os.path.basename(file_name))[0]
+    vs_name = vs_name.replace(" ","_")
+    vs_name = vs_name.replace("-","_")
+    vs_name = vs_name.replace(".","_")
+    vs_path = os.path.join(KB_ROOT_PATH, vs_name)
+    return vs_path

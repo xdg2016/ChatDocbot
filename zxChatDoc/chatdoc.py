@@ -1,10 +1,11 @@
 from zxChatDoc import openai_api_embedding,openai_api_chat
 from sklearn.metrics.pairwise import cosine_similarity
-from typing import Union, List
 from tqdm import tqdm
 import numpy as np
 from zxChatDoc.util import *
+from zxChatDoc.config import *
 import json
+import shutil
 
 # 本地化文档智能查询
 class ChatDoc():
@@ -16,18 +17,47 @@ class ChatDoc():
         self.init_vectors = False
         self.vec_stored = False
         self.simi_th = 0.7
+        self.embeddings = None
 
-    def init_vectors_base(self,  doc_files: Union[str, List[str]]):
+    def add_vectors_base(self, kb_name, doc_file: str):
         '''
         根据文档初始化向量库
         '''
         # 加载文档
-        corpus = self.load_doc_files(doc_files)
+        corpus = self.load_doc_files(doc_file)
         # 文档切块
         self.data = self.corpus_to_chunks(corpus)
         # 构建特征库
         self.embeddings = self.get_trucks_embeddings(self.data)
+        self.save_vectors_base(kb_name)
         self.init_vectors = True
+
+    def save_vectors_base(self, kb_name: str):
+        '''
+        保存向量库
+        '''
+        vs_path = os.path.join(KB_ROOT_PATH, kb_name)
+        if not os.path.exists(vs_path):
+            os.makedirs(vs_path)
+        data_path = os.path.join(vs_path, "data.npy")
+        np.save(data_path,self.data)
+        embedding_path = os.path.join(vs_path, "embedding.npy")
+        np.save(embedding_path,self.embeddings)
+
+    def load_vectors_base(self, kb_name: str):
+        '''
+        加载向量库
+        '''
+        vs_path = os.path.join(KB_ROOT_PATH, kb_name)
+        data_path = os.path.join(vs_path, "data.npy")
+        self.data = np.load(data_path).tolist()
+        embedding_path = os.path.join(vs_path, "embedding.npy")
+        self.embeddings = np.load(embedding_path)
+    
+    def del_vectors_base(self,kb_name:str):
+        file_path = os.path.join(KB_ROOT_PATH, kb_name)
+        if os.path.exists(file_path):
+            shutil.rmtree(file_path)
 
     def load_doc_files(self, doc_file: str):
         '''
@@ -50,7 +80,7 @@ class ChatDoc():
         text_toks = [t.split(' ') for t in texts]
         chunks = []
         # 按字数统计
-        max_strlen = self.max_word_count
+        max_strlen = int(self.max_word_count)
         text_toks = sum(text_toks,[])
         chunk = ""
         last_idx = 0
