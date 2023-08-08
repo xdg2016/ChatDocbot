@@ -54,11 +54,15 @@ class ChatDoc():
         '''
         加载向量库
         '''
+        start = time.time()
         vs_path = os.path.join(KB_ROOT_PATH, kb_name)
         data_path = os.path.join(vs_path, "data.npy")
         self.data = np.load(data_path).tolist()
         embedding_path = os.path.join(vs_path, "embedding.npy")
         self.embeddings = np.load(embedding_path)
+        end = time.time()
+        logger.info(f"load vectors cost time:{end - start}")
+
     
     def del_vectors_base(self,kb_name:str):
         file_path = os.path.join(KB_ROOT_PATH, kb_name)
@@ -173,7 +177,8 @@ class ChatDoc():
         topk_trucks = [self.data[i] for i in neighbors]
         return topk_trucks
 
-    def query(self,question,topn):
+    def query(self,kb_name,question,topn):
+        self.load_vectors_base(kb_name)
         logger.info(f"查询内容:{question}")
         try:
             topn_chunks = self.get_topk_trucks(question,topn)

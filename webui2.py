@@ -37,14 +37,10 @@ def question_answer(kb_name, question,chatbot,topn):
     if kb_name is None or kb_name.strip() == "":
         chatbot += [(None,'当前没有选择知识库！')]
         return chatbot,gr.update(value="", interactive=True)
-    if doc_chatter.embeddings is None:
-        logger.info("加载知识库...")
-        doc_chatter.load_vectors_base(kb_name)
     if len(question) == 0:
         chatbot += [(None,'输入的问题为空！')]
         return chatbot,gr.update(value="", interactive=True)
-    
-    topn_result,answer = doc_chatter.query(question,topn)
+    topn_result,answer = doc_chatter.query(kb_name,question,topn)
     chatbot += [(None,answer)]
     return chatbot,gr.update(value="", interactive=True),topn_result
 
@@ -55,17 +51,13 @@ def requery(kb_name,chatbot,topn):
     if kb_name is None or kb_name.strip() == "":
         chatbot += [(None,'当前没有选择知识库！')]
         return chatbot,gr.update(value="", interactive=True)
-    if doc_chatter.embeddings is None:
-        logger.info("加载知识库...")
-        doc_chatter.load_vectors_base(kb_name)
-
     question = get_last_question(chatbot)
     if question is None:
         status = "上一个问题为None，请手动输入！"
         logger.info(status)
         chatbot += [(None,status)]
         return chatbot,gr.update(value="", interactive=True),""
-    topn_result,answer = doc_chatter.query(question,topn)
+    topn_result,answer = doc_chatter.query(kb_name,question,topn)
     chatbot += [(None,answer)]
     return chatbot,gr.update(value="", interactive=True),topn_result
 
@@ -129,11 +121,10 @@ def change_knowledge_base(kb_name,chatbot):
     if kb_name is None or kb_name.strip() == "":
         chatbot+= [(None,"已有知识库为空，请创建新的知识库！")]
         return chatbot
-    doc_chatter.load_vectors_base(kb_name)
+    # doc_chatter.load_vectors_base(kb_name)
     vs_status = f"知识库切换为:《{kb_name}》"
     chatbot+= [(None,vs_status)]
-    return chatbot
-
+    return chatbot,kb_name
 
 # 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
 new_kb_btn = gr.Button('新建知识库')
@@ -150,7 +141,7 @@ if __name__ == '__main__':
     with gr.Blocks() as demo:
         gr.Markdown(f'<center><h1>{title}</h1></center>')
         gr.Markdown(f"<h5>{description}</h5>")
-
+        vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 1 else None)   # 记录当前用户选择是哪个知识库
         with gr.Row():
             with gr.Column(scale=2):
                 chatbot = gr.Chatbot([[None, init_message]],
@@ -171,13 +162,16 @@ if __name__ == '__main__':
                                                 value=get_vs_list()[0] if len(get_vs_list()) > 0 else None
                                                 )
                     topn = gr.Slider(3, 10, step=1,value=TOPK,label="搜索数量")
-                    del_kb = gr.Button("删除当前知识库")
+                    with gr.Row():
+                        refresh_kb = gr.Button("刷新已有知识库")
+                        del_kb = gr.Button("删除当前知识库")
+                    refresh_kb.click(refresh_vs_list,inputs=[],outputs=[select_vs])
                     del_kb.click(fn=del_knowledge_base,
                                     inputs=[select_vs, chatbot],
                                     outputs=[chatbot,select_vs])
                     select_vs.change(fn=change_knowledge_base,
                                      inputs=[select_vs,chatbot],
-                                     outputs=[chatbot])
+                                     outputs=[chatbot,vs_name])
                     topn_result = gr.TextArea(label="查询的topn片段")
 
                 with gr.Tab("创建知识库"):
@@ -189,9 +183,9 @@ if __name__ == '__main__':
                     new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
 
         # 触发事件
-        query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[select_vs,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
+        query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[vs_name,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
         clear_btn.click(reset_chat, [chatbot, query], [chatbot, query,topn_result])
-        requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[select_vs,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
+        requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
         demo.load(
             fn=refresh_vs_list,
             inputs=None,
