@@ -50,7 +50,7 @@ def requery(kb_name,chatbot,topn):
     '''
     if kb_name is None or kb_name.strip() == "":
         chatbot += [(None,'当前没有选择知识库！')]
-        return chatbot,gr.update(value="", interactive=True)
+        return chatbot,gr.update(value="", interactive=True),""
     question = get_last_question(chatbot)
     if question is None:
         status = "上一个问题为None，请手动输入！"
@@ -71,7 +71,8 @@ def get_vs_list():
     lst.sort()
     return lst_default + lst
 
-def refresh_vs_list():
+def refresh_vs_list(vs_name):
+    print(vs_name)
     return gr.update(choices=get_vs_list())
 
 def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
@@ -129,67 +130,67 @@ def change_knowledge_base(kb_name,chatbot):
 # 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
 new_kb_btn = gr.Button('新建知识库')
 
-if __name__ == '__main__':
+# 初始化文档查询器
+doc_chatter = ChatDoc()
 
-    # 初始化文档查询器
-    doc_chatter = ChatDoc()
+title = '智能问答'
+description = """上传资料文档,根据文档内容查询答案"""
+split_rules = {"按字数切分":"word_count", "按行切分":"line"}
+init_message = """欢迎使用智能问答，请选择知识库提问 """
+with gr.Blocks() as demo:
+    gr.Markdown(f'<center><h1>{title}</h1></center>')
+    gr.Markdown(f"<h5>{description}</h5>")
+    vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 0 else None)   # 记录当前用户选择是哪个知识库
+    with gr.Row():
+        with gr.Column(scale=2):
+            chatbot = gr.Chatbot([[None, init_message]],
+                                elem_id="chat-box",
+                                show_label=False).style(height=660)
+            query = gr.Textbox(show_label=False,
+                            placeholder="请输入提问内容，按回车进行提交",
+                            ).style(container=False)
+            with gr.Row():
+                clear_btn = gr.Button('清空会话🗑️', elem_id='clear').style()
+                requery_btn = gr.Button('重新回答🔄', elem_id='regen').style()
 
-    title = '智能问答'
-    description = """上传资料文档,根据文档内容查询答案"""
-    split_rules = {"按字数切分":"word_count", "按行切分":"line"}
-    init_message = """欢迎使用智能问答，请选择知识库提问 """
-    with gr.Blocks() as demo:
-        gr.Markdown(f'<center><h1>{title}</h1></center>')
-        gr.Markdown(f"<h5>{description}</h5>")
-        vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 1 else None)   # 记录当前用户选择是哪个知识库
-        with gr.Row():
-            with gr.Column(scale=2):
-                chatbot = gr.Chatbot([[None, init_message]],
-                                 elem_id="chat-box",
-                                 show_label=False).style(height=660)
-                query = gr.Textbox(show_label=False,
-                               placeholder="请输入提问内容，按回车进行提交",
-                               ).style(container=False)
+        with gr.Column(scale=1):
+            with gr.Tab("已有知识库"):
+                select_vs = gr.Dropdown(get_vs_list(),
+                                            label="选择知识库",
+                                            interactive=True,
+                                            value=get_vs_list()[0] if len(get_vs_list()) > 0 else None
+                                            )
+                topn = gr.Slider(3, 10, step=1,value=TOPK,label="搜索数量")
                 with gr.Row():
-                    clear_btn = gr.Button('清空会话🗑️', elem_id='clear').style()
-                    requery_btn = gr.Button('重新回答🔄', elem_id='regen').style()
+                    refresh_kb = gr.Button("刷新已有知识库")
+                    del_kb = gr.Button("删除当前知识库")
+                refresh_kb.click(refresh_vs_list,inputs=[],outputs=[select_vs])
+                del_kb.click(fn=del_knowledge_base,
+                                inputs=[select_vs, chatbot],
+                                outputs=[chatbot,select_vs])
+                select_vs.change(fn=change_knowledge_base,
+                                    inputs=[select_vs,chatbot],
+                                    outputs=[chatbot,vs_name])
+                topn_result = gr.TextArea(label="查询的topn片段")
 
-            with gr.Column(scale=1):
-                with gr.Tab("已有知识库"):
-                    select_vs = gr.Dropdown(get_vs_list(),
-                                                label="选择知识库",
-                                                interactive=True,
-                                                value=get_vs_list()[0] if len(get_vs_list()) > 0 else None
-                                                )
-                    topn = gr.Slider(3, 10, step=1,value=TOPK,label="搜索数量")
-                    with gr.Row():
-                        refresh_kb = gr.Button("刷新已有知识库")
-                        del_kb = gr.Button("删除当前知识库")
-                    refresh_kb.click(refresh_vs_list,inputs=[],outputs=[select_vs])
-                    del_kb.click(fn=del_knowledge_base,
-                                    inputs=[select_vs, chatbot],
-                                    outputs=[chatbot,select_vs])
-                    select_vs.change(fn=change_knowledge_base,
-                                     inputs=[select_vs,chatbot],
-                                     outputs=[chatbot,vs_name])
-                    topn_result = gr.TextArea(label="查询的topn片段")
+            with gr.Tab("创建知识库"):
+                kb_name = gr.Textbox(label="知识库名称")
+                file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
+                # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
+                max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
+                new_kb_btn.render()
+                new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
 
-                with gr.Tab("创建知识库"):
-                    kb_name = gr.Textbox(label="知识库名称")
-                    file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
-                    # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
-                    max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
-                    new_kb_btn.render()
-                    new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
-
-        # 触发事件
-        query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[vs_name,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
-        clear_btn.click(reset_chat, [chatbot, query], [chatbot, query,topn_result])
-        requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
-        demo.load(
-            fn=refresh_vs_list,
-            inputs=None,
-            outputs=[select_vs])
+    # 触发事件
+    query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[vs_name,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
+    clear_btn.click(reset_chat, [chatbot, query], [chatbot, query,topn_result])
+    requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
+    demo.load(
+        fn=refresh_vs_list,
+        inputs=[vs_name],
+        outputs=[select_vs,vs_name])
+    
+if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
     demo.launch(server_name="0.0.0.0",server_port=8888)
     
