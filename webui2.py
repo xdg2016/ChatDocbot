@@ -71,8 +71,7 @@ def get_vs_list():
     lst.sort()
     return lst_default + lst
 
-def refresh_vs_list(vs_name):
-    print(vs_name)
+def refresh_vs_list():
     return gr.update(choices=get_vs_list())
 
 def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
@@ -187,8 +186,8 @@ with gr.Blocks() as demo:
     requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
     demo.load(
         fn=refresh_vs_list,
-        inputs=[vs_name],
-        outputs=[select_vs,vs_name])
+        inputs=None,
+        outputs=[select_vs])
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
