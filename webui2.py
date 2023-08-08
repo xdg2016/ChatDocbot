@@ -2,6 +2,7 @@ from zxChatDoc.chatdoc import ChatDoc
 from zxChatDoc.config import *
 import gradio as gr
 import os
+import uuid
 
 def reset_chat(chatbot, state):
     chatbot = [(None,"请输入问题...")]
@@ -126,6 +127,13 @@ def change_knowledge_base(kb_name,chatbot):
     chatbot+= [(None,vs_status)]
     return chatbot,kb_name
 
+def load():
+    uuid_num = uuid.uuid4()
+    logger.add(os.path.join(cur_path,f"logs/liblog_{uuid_num}.log"))
+    return uuid_num,refresh_vs_list
+
+
+
 # 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
 new_kb_btn = gr.Button('新建知识库')
 
@@ -145,6 +153,7 @@ with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
     gr.Markdown(f"<h5>{description}</h5>")
     vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 0 else None)   # 记录当前用户选择是哪个知识库
+    uuid_num = gr.State()
     with gr.Row():
         with gr.Column(scale=2):
             chatbot = gr.Chatbot([[None, init_message]],
@@ -190,9 +199,9 @@ with gr.Blocks() as demo:
     clear_btn.click(reset_chat, [chatbot, query], [chatbot, query,topn_result])
     requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
     demo.load(
-        fn=refresh_vs_list,
+        fn=load,
         inputs=None,
-        outputs=[select_vs])
+        outputs=[uuid_num,select_vs])
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
