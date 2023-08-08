@@ -98,9 +98,9 @@ def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
         logger.info(vs_status)
         chatbot.pop()
         chatbot+= [(None,vs_status)]
-        return chatbot, gr.update(choices=get_vs_list(),value=kb_name),None
+        return chatbot, gr.update(choices=get_vs_list(),value=kb_name),kb_name,None
     chatbot += [[None, vs_status]]
-    return chatbot,refresh_vs_list(),None
+    return chatbot,refresh_vs_list(),kb_name,None
 
 def del_knowledge_base(kb_name,chatbot):
     '''
@@ -132,10 +132,15 @@ new_kb_btn = gr.Button('新建知识库')
 # 初始化文档查询器
 doc_chatter = ChatDoc()
 
+vs_list = ["《"+vs+"》" for vs in get_vs_list()] 
+
 title = '智能问答'
 description = """上传资料文档,根据文档内容查询答案"""
 split_rules = {"按字数切分":"word_count", "按行切分":"line"}
-init_message = """欢迎使用智能问答，请选择知识库提问 """
+init_message = """欢迎使用智能问答，请选择已有知识库提问：\n""" if len(vs_list) > 0 else "欢迎使用智能问答，当前没有知识库，请先创建知识库后进行提问"
+for vs in vs_list:
+    init_message += f"{vs}\n"
+
 with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
     gr.Markdown(f"<h5>{description}</h5>")
@@ -178,7 +183,7 @@ with gr.Blocks() as demo:
                 # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
                 max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
                 new_kb_btn.render()
-                new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
+                new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,vs_name,file])
 
     # 触发事件
     query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[vs_name,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)

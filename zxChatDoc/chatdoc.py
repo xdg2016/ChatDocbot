@@ -171,6 +171,7 @@ class ChatDoc():
 
         neighbors = list(range(start, end))
         logger.info(f"topk:{top1} {neighbors}")
+        logger.info(f"len_data:{len(self.data)},len_simis:{len(simis[0])}")
         # 小于相似度阈值的，不返回结果
         if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
             return []
