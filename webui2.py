@@ -130,9 +130,7 @@ def change_knowledge_base(kb_name,chatbot):
 def load():
     uuid_num = uuid.uuid4()
     logger.add(os.path.join(cur_path,f"logs/liblog_{uuid_num}.log"))
-    return uuid_num,refresh_vs_list
-
-
+    return uuid_num,refresh_vs_list()
 
 # 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
 new_kb_btn = gr.Button('新建知识库')
