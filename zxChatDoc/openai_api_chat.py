@@ -13,6 +13,14 @@ OPENAI_API_VERSION='2023-03-15-preview'
 OPENAI_API_VERSION='2023-05-15'
 #OPENAI_API_VERSION='2023-06-13'
 
+# # 2023.08.08 美东区
+# OPENAI_API_KEY1 = "42f7c51ab46e45a0902f112ac89820d9"
+# OPENAI_API_ENDPOINT = "https://openai-10-eu-02.openai.azure.com/"
+
+# 2023.08.08 法国区
+OPENAI_API_KEY1 = "4818c4caf78e405f9c26491a646bfdc2"
+OPENAI_API_ENDPOINT = "https://openai-10-fc-01.openai.azure.com/"
+
 # ai-lab-gpt35-text  ai-lab-gpt-4 ai-lab-gpt-4-32k
 MODELS=['ai-lab-gpt-35-turbo','gpt-35-turbo-16k','ai-lab-gpt-4', 'ai-lab-gpt-4-32k']
 

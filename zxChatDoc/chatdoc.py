@@ -142,7 +142,7 @@ class ChatDoc():
                 if type(inp_emb) != np.ndarray:
                     raise Exception("提取向量出错！")
             except Exception as e:
-                logger.error(e)
+                logger.error(f"提取向量出错:{e}")
                 if _rerty_count < 3:
                     _retry = True
                     _rerty_count += 1
@@ -150,6 +150,7 @@ class ChatDoc():
                     continue
         
         if type(inp_emb) == dict:
+            logger.info("查询TopK失败!")
             return []
         simis = cosine_similarity(inp_emb,self.embeddings)
         # 相似度排序
@@ -165,7 +166,7 @@ class ChatDoc():
         end = min(len(simis[0]),top1+int(self.topk/2)+2 if self.topk%2 != 0 else top1+int(self.topk/2)+1)
 
         neighbors = list(range(start, end))
-        logger.error("topk:",top1,neighbors)
+        logger.info(f"topk:{top1} {neighbors}")
         # 小于相似度阈值的，不返回结果
         if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
             return []
@@ -177,7 +178,7 @@ class ChatDoc():
         try:
             topn_chunks = self.get_topk_trucks(question,topn)
             if len(topn_chunks) == 0:
-                return "","查询失败，可能原因：\n(1)提取向量失败\n(2)根据已有资料，无法查询到答案，您可以尝试换一种提问方式！"
+                return "","查询TopK失败，可能原因：\n1. 提取向量失败\n2. 根据已有资料，无法查询到答案，您可以尝试换一种提问方式！"
         except Exception as e:
             logger.error(e)
             return "","查询结果出错！"

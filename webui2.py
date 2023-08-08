@@ -60,6 +60,11 @@ def requery(kb_name,chatbot,topn):
         doc_chatter.load_vectors_base(kb_name)
 
     question = get_last_question(chatbot)
+    if question is None:
+        status = "上一个问题为None，请手动输入！"
+        logger.info(status)
+        chatbot += [(None,status)]
+        return chatbot,gr.update(value="", interactive=True),""
     topn_result,answer = doc_chatter.query(question,topn)
     chatbot += [(None,answer)]
     return chatbot,gr.update(value="", interactive=True),topn_result
