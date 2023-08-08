@@ -62,7 +62,7 @@ class ChatDoc():
         self.embeddings = np.load(embedding_path)
         end = time.time()
         logger.info(f"load vectors cost time:{end - start}")
-
+        return self.data, self.embeddings
     
     def del_vectors_base(self,kb_name:str):
         file_path = os.path.join(KB_ROOT_PATH, kb_name)
@@ -132,7 +132,7 @@ class ChatDoc():
             embeddings = np.vstack(embeddings)
         return np.array(embeddings)
     
-    def get_topk_trucks(self,question,topn):
+    def get_topk_trucks(self,question,topn,data,embeddings):
         '''
         获取最相似的topk个片段
         '''
@@ -156,7 +156,7 @@ class ChatDoc():
         if type(inp_emb) == dict:
             logger.info("查询TopK失败!")
             return []
-        simis = cosine_similarity(inp_emb,self.embeddings)
+        simis = cosine_similarity(inp_emb,embeddings)
         # 相似度排序
         simis_sorted = np.sort(simis)[:,::-1]
         neighbors = np.argsort(simis)[:,::-1][0,:self.topk]
@@ -171,18 +171,18 @@ class ChatDoc():
 
         neighbors = list(range(start, end))
         logger.info(f"topk:{top1} {neighbors}")
-        logger.info(f"len_data:{len(self.data)},len_simis:{len(simis[0])}")
+        logger.info(f"len_data:{len(data)},len_simis:{len(simis[0])}")
         # 小于相似度阈值的，不返回结果
         if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
             return []
-        topk_trucks = [self.data[i] for i in neighbors]
+        topk_trucks = [data[i] for i in neighbors]
         return topk_trucks
 
     def query(self,kb_name,question,topn):
-        self.load_vectors_base(kb_name)
+        data,embeddings = self.load_vectors_base(kb_name)
         logger.info(f"查询内容:{question}")
         try:
-            topn_chunks = self.get_topk_trucks(question,topn)
+            topn_chunks = self.get_topk_trucks(question,topn,data,embeddings)
             if len(topn_chunks) == 0:
                 return "","查询TopK失败，可能原因：\n1. 提取向量失败\n2. 根据已有资料，无法查询到答案，您可以尝试换一种提问方式！"
         except Exception as e:
