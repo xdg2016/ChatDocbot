@@ -57,12 +57,16 @@ class ChatDoc():
         '''
         start = time.time()
         vs_path = os.path.join(KB_ROOT_PATH, kb_name)
-        data_path = os.path.join(vs_path, "data.npy")
-        self.data = np.load(data_path).tolist()
-        embedding_path = os.path.join(vs_path, "embedding.npy")
-        self.embeddings = np.load(embedding_path)
-        end = time.time()
-        logger.info(f"load vectors cost time:{end - start}")
+        try:  
+            data_path = os.path.join(vs_path, "data.npy")
+            self.data = np.load(data_path).tolist()
+            embedding_path = os.path.join(vs_path, "embedding.npy")
+            self.embeddings = np.load(embedding_path)
+            end = time.time()
+            logger.info(f"load vectors cost time:{end - start}")
+        except Exception as e:
+            logger.error(f":{e}")
+            return [],[]
         return self.data, self.embeddings
     
     def del_vectors_base(self,kb_name:str):
@@ -182,6 +186,9 @@ class ChatDoc():
 
     def query(self,kb_name,question,topn):
         data,embeddings = self.load_vectors_base(kb_name)
+        if len(data)==0 or len(embeddings)==0 or len(data) != len(embeddings):
+            logger.error(f"加载的知识库信息：data:{len(data)},embeddings:{len(embeddings)}")
+            return "","当前知识库文件存在问题，请重新创建！"
         logger.info(f"查询内容:{question}")
         try:
             topn_chunks = self.get_topk_trucks(question,topn,data,embeddings)

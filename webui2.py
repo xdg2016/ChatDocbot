@@ -3,6 +3,7 @@ from zxChatDoc.config import *
 import gradio as gr
 import os
 import uuid
+import numpy as np
 
 def reset_chat(chatbot, state):
     chatbot = [(None,"请输入问题...")]
@@ -127,10 +128,41 @@ def change_knowledge_base(kb_name,chatbot):
     chatbot+= [(None,vs_status)]
     return chatbot,kb_name
 
-def load():
+def check_vs(chatbot):
+    '''
+    检查知识库文件是否正确
+    '''
+    vs_list = get_vs_list()
+    bad_vs = []
+    bad = 0
+    for vs in vs_list:
+        bad = 0
+        vs_path = os.path.join(KB_ROOT_PATH,vs)
+        data_path = os.path.join(vs_path, "data.npy")
+        try:
+            data = np.load(data_path).tolist()
+            embedding_path = os.path.join(vs_path, "embedding.npy")
+            embeddings = np.load(embedding_path) 
+            
+        except Exception as e:
+            bad = 1
+        if bad > 0 or len(data) != len(embeddings):
+            bad_vs.append(vs)
+
+    if len(bad_vs) == 0:
+        vs_status = "已完成知识库检查！"
+    else: 
+        vs_status = "已损坏的知识库：\n"
+        for vs in bad_vs:
+            vs_status += f"《{vs}》\n"
+    vs_status += "请删除并重新创建知识库！"
+    chatbot+= [(None,vs_status)]
+    return chatbot
+
+def load(chatbot):
     uuid_num = uuid.uuid4()
     logger.add(os.path.join(cur_path,f"logs/liblog_{uuid_num}.log"))
-    return uuid_num,refresh_vs_list()
+    return uuid_num,refresh_vs_list(),check_vs(chatbot)
 
 # 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
 new_kb_btn = gr.Button('新建知识库')
@@ -198,8 +230,8 @@ with gr.Blocks() as demo:
     requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[vs_name,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
     demo.load(
         fn=load,
-        inputs=None,
-        outputs=[uuid_num,select_vs])
+        inputs=[chatbot],
+        outputs=[uuid_num,select_vs,chatbot])
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
