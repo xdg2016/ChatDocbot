@@ -7,6 +7,7 @@ from zxChatDoc.config import *
 import json
 import shutil
 import time
+import uuid
 
 # 本地化文档智能查询
 class ChatDoc():
@@ -172,6 +173,7 @@ class ChatDoc():
         neighbors = list(range(start, end))
         logger.info(f"topk:{top1} {neighbors}")
         logger.info(f"len_data:{len(data)},len_simis:{len(simis[0])}")
+        assert len(data) == len(simis[0]),"维度不匹配"
         # 小于相似度阈值的，不返回结果
         if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
             return []
