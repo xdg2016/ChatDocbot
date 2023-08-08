@@ -3,7 +3,8 @@ from loguru import logger
 
 cur_path = os.path.dirname(os.path.dirname(__file__))
 # 记录日志
-logger.remove()
+# logger.remove()
+logger.add(os.path.join(cur_path,f"logs/liblog.log"))
 
 # 知识库默认存储路径
 KB_ROOT_PATH = os.path.join(cur_path, "knowledge_base")

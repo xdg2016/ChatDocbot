@@ -74,7 +74,7 @@ def get_vs_list():
     return lst_default + lst
 
 def refresh_vs_list():
-    return gr.update(choices=get_vs_list())
+    return gr.update(choices=get_vs_list(),value= get_vs_list()[0] if len(get_vs_list()) > 0 else None)
 
 def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
     '''
@@ -98,7 +98,6 @@ def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
             vs_status = f"知识库《{kb_name}》创建失败，错误信息：{info['message']}，请重新创建！"
 
         logger.info(vs_status)
-        chatbot.pop()
         chatbot+= [(None,vs_status)]
         return chatbot, gr.update(choices=get_vs_list(),value=kb_name),kb_name,None
     chatbot += [[None, vs_status]]
@@ -113,8 +112,9 @@ def del_knowledge_base(kb_name,chatbot):
         return chatbot,refresh_vs_list()
     doc_chatter.del_vectors_base(kb_name)
     vs_status = f"已删除知识库:《{kb_name}》"
+    logger.info(vs_status)
     chatbot+= [(None,vs_status)]
-    return chatbot,gr.update(choices=get_vs_list(),value= get_vs_list()[0] if len(get_vs_list()) > 0 else None)
+    return chatbot,refresh_vs_list()
 
 def change_knowledge_base(kb_name,chatbot):
     '''
@@ -125,6 +125,7 @@ def change_knowledge_base(kb_name,chatbot):
         return chatbot
     # doc_chatter.load_vectors_base(kb_name)
     vs_status = f"知识库切换为:《{kb_name}》"
+    logger.info(vs_status)
     chatbot+= [(None,vs_status)]
     return chatbot,kb_name
 
@@ -155,29 +156,30 @@ def check_vs(chatbot):
         vs_status = "已损坏的知识库：\n"
         for vs in bad_vs:
             vs_status += f"《{vs}》\n"
-    vs_status += "请删除并重新创建知识库！"
+        vs_status += "请删除并重新创建知识库！"
+    logger.info(vs_status)
     chatbot+= [(None,vs_status)]
     return chatbot
 
 def load(chatbot):
-    uuid_num = uuid.uuid4()
-    logger.add(os.path.join(cur_path,f"logs/liblog_{uuid_num}.log"))
-    return uuid_num,refresh_vs_list(),check_vs(chatbot)
-
-# 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
-new_kb_btn = gr.Button('新建知识库')
+    '''
+    初始化信息
+    '''
+    vs_list = ["《"+vs+"》" for vs in get_vs_list()] 
+    init_message = """欢迎使用智能问答，请选择已有知识库提问：\n""" if len(vs_list) > 0 else "欢迎使用智能问答，当前没有知识库，请先创建知识库后进行提问"
+    for vs in vs_list:
+        init_message += f"{vs}\n"
+    chatbot += [(None,init_message)]
+    # uuid_num = uuid.uuid4()
+    # logger.add(os.path.join(cur_path,f"logs/liblog_{uuid_num}.log"))
+    chatbot = check_vs(chatbot)
+    return uuid_num,refresh_vs_list(),chatbot
 
 # 初始化文档查询器
 doc_chatter = ChatDoc()
-
-vs_list = ["《"+vs+"》" for vs in get_vs_list()] 
-
 title = '智能问答'
 description = """上传资料文档,根据文档内容查询答案"""
-split_rules = {"按字数切分":"word_count", "按行切分":"line"}
-init_message = """欢迎使用智能问答，请选择已有知识库提问：\n""" if len(vs_list) > 0 else "欢迎使用智能问答，当前没有知识库，请先创建知识库后进行提问"
-for vs in vs_list:
-    init_message += f"{vs}\n"
+
 
 with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
@@ -186,7 +188,7 @@ with gr.Blocks() as demo:
     uuid_num = gr.State()
     with gr.Row():
         with gr.Column(scale=2):
-            chatbot = gr.Chatbot([[None, init_message]],
+            chatbot = gr.Chatbot([[None, None]],
                                 elem_id="chat-box",
                                 show_label=False).style(height=660)
             query = gr.Textbox(show_label=False,
@@ -221,7 +223,7 @@ with gr.Blocks() as demo:
                 file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
                 # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
                 max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
-                new_kb_btn.render()
+                new_kb_btn = gr.Button('新建知识库')
                 new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,vs_name,file])
 
     # 触发事件
