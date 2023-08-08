@@ -6,10 +6,11 @@ from zxChatDoc.util import *
 from zxChatDoc.config import *
 import json
 import shutil
+import time
 
 # 本地化文档智能查询
 class ChatDoc():
-    def __init__(self,topk = 5,max_word_count = 300):
+    def __init__(self,topk = TOPK,max_word_count = CHUNK_SIZE):
         self.topk = topk
         self.max_word_count = int(max_word_count)
         self.embed = openai_api_embedding.test_request
@@ -93,7 +94,6 @@ class ChatDoc():
             chunk += words
             if len(chunk) > max_strlen:
                 chunk = " ".join(text_toks[last_idx:idx+1]) 
-                # print(len(chunk))
                 chunks.append(chunk)
                 last_idx = idx+1
                 chunk = ""
@@ -133,14 +133,39 @@ class ChatDoc():
         获取最相似的topk个片段
         '''
         self.topk = topn
-        inp_emb = self.embed([question])
+        _retry = True
+        _rerty_count = 0
+        while _retry:
+            _retry = False
+            try:
+                inp_emb = self.embed([question])
+                if type(inp_emb) != np.ndarray:
+                    raise Exception("提取向量出错！")
+            except Exception as e:
+                logger.error(e)
+                if _rerty_count < 3:
+                    _retry = True
+                    _rerty_count += 1
+                    time.sleep(1)
+                    continue
+        
+        if type(inp_emb) == dict:
+            return []
         simis = cosine_similarity(inp_emb,self.embeddings)
         # 相似度排序
         simis_sorted = np.sort(simis)[:,::-1]
         neighbors = np.argsort(simis)[:,::-1][0,:self.topk]
-        start = max(0,neighbors[0]- int(self.topk/2))
-        end = min(len(simis[0]),neighbors[0]+int(self.topk/2) if self.topk%2 == 0 else neighbors[0]+int(self.topk/2)+1)
+        # 前后平均(如果是top5,前后各取2，如果是top4,取前1，后2)
+        # start = max(0,neighbors[0]- int(self.topk/2) if self.topk%2 != 0 else neighbors[0]-int(self.topk/2)+1)
+        # end = min(len(simis[0]),neighbors[0]+int(self.topk/2)+1)
+
+        # 偏后
+        top1 = neighbors[0]
+        start = max(0, top1 - 1)
+        end = min(len(simis[0]),top1+int(self.topk/2)+2 if self.topk%2 != 0 else top1+int(self.topk/2)+1)
+
         neighbors = list(range(start, end))
+        logger.error("topk:",top1,neighbors)
         # 小于相似度阈值的，不返回结果
         if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
             return []
@@ -148,23 +173,24 @@ class ChatDoc():
         return topk_trucks
 
     def query(self,question,topn):
-        print("查询内容...")
-        print(question)
+        logger.info(f"查询内容:{question}")
         try:
             topn_chunks = self.get_topk_trucks(question,topn)
             if len(topn_chunks) == 0:
-                return "根据已有资料，无法查询到答案，您可以尝试换一种提问方式！"
+                return "","查询失败，可能原因：\n(1)提取向量失败\n(2)根据已有资料，无法查询到答案，您可以尝试换一种提问方式！"
         except Exception as e:
-            print(e)
-            return "查询结果出错！"
+            logger.error(e)
+            return "","查询结果出错！"
         prompt = ""
         prompt += f"问题：{question}"
         # 长文本
         paragraph = f"\n###\n我提供的长文本："
-        for c in topn_chunks:
+        topn_results = ""
+        for i,c in enumerate(topn_chunks):
             paragraph += c
+            topn_results += f"【{i+1}】"+c+"\n"
         try:
-            print("chatGPT组织答案...")
+            logger.info("chatGPT组织答案...")
             _retry = True
             _rerty_count = 0
             while _retry:
@@ -172,7 +198,7 @@ class ChatDoc():
                 try:
                     answer = self.chat(prompt,paragraph)
                 except Exception as e:
-                    print(e)
+                    logger.error(e)
                     if _rerty_count < 10:
                         _retry = True
                         _rerty_count += 1
@@ -182,8 +208,8 @@ class ChatDoc():
             index = answer_text.find(prefix)
             index = index+len(prefix) if index > -1 else 0 
             answer_text = answer_text[index:].replace("提取的关键词是：","").strip()
-            return answer_text
+            return topn_results,answer_text
         except Exception as e:
-            print(e)
-            return "请求ChatGPT错误"
+            logger.error(e)
+            return "","请求ChatGPT错误"
     

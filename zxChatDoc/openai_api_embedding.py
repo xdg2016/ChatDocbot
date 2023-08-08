@@ -2,7 +2,7 @@ import time
 import json
 import numpy as np
 import requests
-
+from zxChatDoc.config import logger
 
 OPENAI_API_KEY1='e83cc1e656cf4c9090e0b6b3e13fcde3'
 OPENAI_API_ENDPOINT='https://openai-10-eu-01.openai.azure.com/'
@@ -18,7 +18,7 @@ def test_request(input):
     startt = time.time()
     res = requests.post(url, json=data, headers=headers_data, timeout=(10,30), stream=False)
     endt = time.time()
-    print('use time {} s'.format(endt-startt))
+    logger.info('ada embedding use time {} s'.format(endt-startt))
     embeddings = []
     if res.headers['content-type'] == 'application/json':
         res_json = json.loads(res.text)
@@ -42,5 +42,5 @@ def test_request(input):
     else:
         for line in res.iter_lines():
           line = line.decode('utf-8')
-          print(line)
+          logger.info(line)
           continue

@@ -5,36 +5,64 @@ import os
 
 def reset_chat(chatbot, state):
     chatbot = [(None,"请输入问题...")]
-    return chatbot, gr.update(value="", interactive=True)
+    return chatbot, gr.update(value="", interactive=True),gr.update(value="", interactive=False)
 
-def add_text2(chatbot, text):
+def add_text1(chatbot, text):
     '''
     拼接聊天记录
     '''
     chatbot = chatbot + [(text, None)]
     return chatbot, text
 
-def add_text1(chatbot):
+def get_last_question(chatbot):
+    '''
+    获取最近一次的问题
+    '''
+    text = None
+    for his in chatbot[::-1]:
+        if his[0] is not None:
+            text = his[0]
+            break
+    return text
+
+def add_text2(chatbot):
     '''
     拼接聊天记录
     '''
-    chatbot = chatbot + [(None,"正在处理文档...")]
-    return chatbot
+    text = get_last_question(chatbot)
+    chatbot = chatbot + [(text, None)]
+    return chatbot, text
 
 def question_answer(kb_name, question,chatbot,topn):
     if kb_name is None or kb_name.strip() == "":
         chatbot += [(None,'当前没有选择知识库！')]
         return chatbot,gr.update(value="", interactive=True)
     if doc_chatter.embeddings is None:
-        print("加载知识库...")
+        logger.info("加载知识库...")
         doc_chatter.load_vectors_base(kb_name)
     if len(question) == 0:
         chatbot += [(None,'输入的问题为空！')]
         return chatbot,gr.update(value="", interactive=True)
     
-    answer = doc_chatter.query(question,topn)
+    topn_result,answer = doc_chatter.query(question,topn)
     chatbot += [(None,answer)]
-    return chatbot,gr.update(value="", interactive=True)
+    return chatbot,gr.update(value="", interactive=True),topn_result
+
+def requery(kb_name,chatbot,topn):
+    '''
+    重新生成
+    '''
+    if kb_name is None or kb_name.strip() == "":
+        chatbot += [(None,'当前没有选择知识库！')]
+        return chatbot,gr.update(value="", interactive=True)
+    if doc_chatter.embeddings is None:
+        logger.info("加载知识库...")
+        doc_chatter.load_vectors_base(kb_name)
+
+    question = get_last_question(chatbot)
+    topn_result,answer = doc_chatter.query(question,topn)
+    chatbot += [(None,answer)]
+    return chatbot,gr.update(value="", interactive=True),topn_result
 
 def get_vs_list():
     lst_default = []
@@ -62,7 +90,7 @@ def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
     elif file_name is None or file_name.strip() == "":
         vs_status = "请上传文件，当前支持格式：txt,pdf,docx,markdown"
     else:
-        print("处理文档...")
+        logger.info("处理文档...")
         doc_chatter.max_word_count = int(chunk_size)
         info = doc_chatter.add_vectors_base(kb_name,file.name)
         if info['status'] == "sucess":
@@ -70,7 +98,7 @@ def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
         else:
             vs_status = f"知识库《{kb_name}》创建失败，错误信息：{info['message']}，请重新创建！"
 
-        print(vs_status)
+        logger.info(vs_status)
         chatbot.pop()
         chatbot+= [(None,vs_status)]
         return chatbot, gr.update(choices=get_vs_list(),value=kb_name),None
@@ -101,6 +129,10 @@ def change_knowledge_base(kb_name,chatbot):
     chatbot+= [(None,vs_status)]
     return chatbot
 
+
+# 提前定义，后面就不会出现前面控件调用后面控件时出现没有定义的情况，需要配合xxx.render来使用。相当于先定义组件，后面再实时组装成界面
+new_kb_btn = gr.Button('新建知识库')
+
 if __name__ == '__main__':
 
     # 初始化文档查询器
@@ -116,13 +148,15 @@ if __name__ == '__main__':
 
         with gr.Row():
             with gr.Column(scale=2):
-                chatbot = gr.Chatbot([[None, init_message], [None, None]],
+                chatbot = gr.Chatbot([[None, init_message]],
                                  elem_id="chat-box",
                                  show_label=False).style(height=660)
                 query = gr.Textbox(show_label=False,
                                placeholder="请输入提问内容，按回车进行提交",
                                ).style(container=False)
-                clear_btn = gr.Button('清空会话', elem_id='clear').style(full_width=True)
+                with gr.Row():
+                    clear_btn = gr.Button('清空会话🗑️', elem_id='clear').style()
+                    requery_btn = gr.Button('重新回答🔄', elem_id='regen').style()
 
             with gr.Column(scale=1):
                 with gr.Tab("已有知识库"):
@@ -139,18 +173,20 @@ if __name__ == '__main__':
                     select_vs.change(fn=change_knowledge_base,
                                      inputs=[select_vs,chatbot],
                                      outputs=[chatbot])
+                    topn_result = gr.TextArea(label="查询的topn片段")
 
                 with gr.Tab("创建知识库"):
                     kb_name = gr.Textbox(label="知识库名称")
                     file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
                     # split_rule_radio = gr.Radio(["按字数切分", "按行切分"],value="按字数切分", label="切分规则")
                     max_word_count = gr.Textbox(label='最大分割字数',value=CHUNK_SIZE)
-                    new_kb_btn = gr.Button('新建知识库')
+                    new_kb_btn.render()
                     new_kb_btn.click(add_new_knowledge_base,inputs=[kb_name,file,max_word_count,chatbot],outputs=[chatbot,select_vs,file])
 
         # 触发事件
-        query.submit(add_text2,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[select_vs,query,chatbot,topn],outputs=[chatbot,query],queue=False)
-        clear_btn.click(reset_chat, [chatbot, query], [chatbot, query])
+        query.submit(add_text1,inputs=[chatbot,query],outputs=[chatbot,query],queue=False).then(question_answer,inputs=[select_vs,query,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
+        clear_btn.click(reset_chat, [chatbot, query], [chatbot, query,topn_result])
+        requery_btn.click(add_text2,inputs=[chatbot],outputs=[chatbot,query],queue=False).then(requery,inputs=[select_vs,chatbot,topn],outputs=[chatbot,query,topn_result],queue=False)
         demo.load(
             fn=refresh_vs_list,
             inputs=None,
