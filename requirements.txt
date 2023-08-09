@@ -1,0 +1,5 @@
+PyPDF2
+docx
+markdown
+beautifulsoup4
+sklearn

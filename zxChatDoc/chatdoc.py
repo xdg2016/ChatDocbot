@@ -7,7 +7,6 @@ from zxChatDoc.config import *
 import json
 import shutil
 import time
-import uuid
 
 # 本地化文档智能查询
 class ChatDoc():
