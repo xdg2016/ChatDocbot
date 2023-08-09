@@ -136,27 +136,36 @@ def check_vs(chatbot):
     vs_list = get_vs_list()
     bad_vs = []
     bad = 0
+    null_vs = [] # 空文件夹
     for vs in vs_list:
         bad = 0
         vs_path = os.path.join(KB_ROOT_PATH,vs)
+        if len(os.listdir(vs_path)) < 2:
+            null_vs.append(vs)
+            continue
         data_path = os.path.join(vs_path, "data.npy")
         try:
             data = np.load(data_path).tolist()
             embedding_path = os.path.join(vs_path, "embedding.npy")
             embeddings = np.load(embedding_path) 
-            
         except Exception as e:
             bad = 1
         if bad > 0 or len(data) != len(embeddings):
             bad_vs.append(vs)
 
-    if len(bad_vs) == 0:
+    if len(bad_vs) == 0 and len(null_vs)==0:
         vs_status = "已完成知识库检查！"
-    else: 
+    elif len(bad_vs) > 0:
         vs_status = "已损坏的知识库：\n"
         for vs in bad_vs:
             vs_status += f"《{vs}》\n"
         vs_status += "请删除并重新创建知识库！"
+    else:
+        vs_status = "以下知识库为空：\n"
+        for vs in null_vs:
+            vs_status += f"《{vs}》\n"
+        vs_status += "请选择其他知识库，或重新创建该知识库！"
+
     logger.info(vs_status)
     chatbot+= [(None,vs_status)]
     return chatbot
@@ -178,12 +187,13 @@ def load(chatbot):
 # 初始化文档查询器
 doc_chatter = ChatDoc()
 title = '智能问答'
-description = """上传资料文档,根据文档内容查询答案（注：页面刷新后会重置聊天记录）"""
-
+description = """上传资料文档,根据文档内容查询答案"""
+description2 = "1.页面刷新后会重置聊天记录\n2.如果当前问题无法回答或者回答结果不完整，可以点击【重新回答】来重新生成答案"
 
 with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
     gr.Markdown(f"<h4>{description}</h4>")
+    gr.Markdown(f"{description2}")
     vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 0 else None)   # 记录当前用户选择是哪个知识库
     uuid_num = gr.State()
     with gr.Row():
@@ -209,7 +219,7 @@ with gr.Blocks() as demo:
                 with gr.Row():
                     refresh_kb = gr.Button("刷新知识库")
                     del_kb = gr.Button("删除当前知识库")
-                    expand_kb = gr.Button("扩充当前知识库")
+                    # expand_kb = gr.Button("扩充当前知识库")
                 refresh_kb.click(refresh_vs_list,inputs=[],outputs=[select_vs])
                 del_kb.click(fn=del_knowledge_base,
                                 inputs=[select_vs, chatbot],
@@ -238,5 +248,5 @@ with gr.Blocks() as demo:
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
-    demo.launch(server_name="0.0.0.0",server_port=8888)
+    demo.launch(server_name="0.0.0.0",server_port=8888,share=True)
     
