@@ -178,12 +178,12 @@ def load(chatbot):
 # 初始化文档查询器
 doc_chatter = ChatDoc()
 title = '智能问答'
-description = """上传资料文档,根据文档内容查询答案"""
+description = """上传资料文档,根据文档内容查询答案（注：页面刷新后会重置聊天记录）"""
 
 
 with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
-    gr.Markdown(f"<h5>{description}</h5>")
+    gr.Markdown(f"<h4>{description}</h4>")
     vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 0 else None)   # 记录当前用户选择是哪个知识库
     uuid_num = gr.State()
     with gr.Row():
@@ -207,8 +207,9 @@ with gr.Blocks() as demo:
                                             )
                 topn = gr.Slider(3, 10, step=1,value=TOPK,label="搜索数量")
                 with gr.Row():
-                    refresh_kb = gr.Button("刷新已有知识库")
+                    refresh_kb = gr.Button("刷新知识库")
                     del_kb = gr.Button("删除当前知识库")
+                    expand_kb = gr.Button("扩充当前知识库")
                 refresh_kb.click(refresh_vs_list,inputs=[],outputs=[select_vs])
                 del_kb.click(fn=del_knowledge_base,
                                 inputs=[select_vs, chatbot],
