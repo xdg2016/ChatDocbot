@@ -1,5 +1,6 @@
 import os
 from zxChatDoc.config import *
+import hashlib
 
 def extract_text_from_pdf(file_path: str):
     """提取pdf文档的文本内容"""
@@ -53,3 +54,11 @@ def get_kb_embedding_path(file_name):
     vs_name = vs_name.replace(".","_")
     vs_path = os.path.join(KB_ROOT_PATH, vs_name)
     return vs_path
+
+def calculate_md5(file_path):
+    '''计算文件的md5值'''
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()

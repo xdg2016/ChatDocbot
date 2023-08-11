@@ -3,3 +3,5 @@ docx
 markdown
 beautifulsoup4
 sklearn
+hashlib
+pickle

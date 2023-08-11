@@ -7,6 +7,9 @@ from zxChatDoc.config import *
 import json
 import shutil
 import time
+import re
+import pickle
+import time
 
 # 本地化文档智能查询
 class ChatDoc():
@@ -18,9 +21,8 @@ class ChatDoc():
         self.init_vectors = False
         self.vec_stored = False
         self.simi_th = 0.7
-        self.embeddings = None
 
-    def add_vectors_base(self, kb_name, doc_file: str):
+    def add_vectors_base(self, kb_name, doc_file, max_word_count):
         '''
         根据文档初始化向量库
         '''
@@ -29,26 +31,30 @@ class ChatDoc():
         if corpus is None or len(corpus) == 0:
             return {"status":"error","message":"文档为空！"}
         # 文档切块
-        self.data = self.corpus_to_chunks(corpus)
+        data = self.corpus_to_chunks(corpus,max_word_count)
         # 构建特征库
-        self.embeddings = self.get_trucks_embeddings(self.data)
-        if self.embeddings is None:
+        embeddings = self.get_trucks_embeddings(data)
+        # 计算文件的md5值，用于后续重复上传判断
+        md5_val = calculate_md5(doc_file)
+        file_name = str(time.time())+"_"+os.path.basename(doc_file)
+        if embeddings is None:
             return {"status":"error","message":"生成向量库失败！"}
-        self.save_vectors_base(kb_name)
+        # 整合起来保存
+        pickle_data  = {"md5s":{md5_val:file_name},"data":data,"vectors":embeddings} 
+        self.save_vectors_base(kb_name,pickle_data)
         self.init_vectors = True
         return {"status":"sucess","message":"向量库生成成功！"}
 
-    def save_vectors_base(self, kb_name: str):
+    def save_vectors_base(self, kb_name,data):
         '''
         保存向量库
         '''
         vs_path = os.path.join(KB_ROOT_PATH, kb_name)
         if not os.path.exists(vs_path):
             os.makedirs(vs_path)
-        data_path = os.path.join(vs_path, "data.npy")
-        np.save(data_path,self.data)
-        embedding_path = os.path.join(vs_path, "embedding.npy")
-        np.save(embedding_path,self.embeddings)
+        data_path = os.path.join(vs_path, "data.pickle")
+        with open(data_path, "wb") as f:
+            pickle.dump(data, f)
 
     def load_vectors_base(self, kb_name: str):
         '''
@@ -57,44 +63,86 @@ class ChatDoc():
         start = time.time()
         vs_path = os.path.join(KB_ROOT_PATH, kb_name)
         try:  
-            data_path = os.path.join(vs_path, "data.npy")
-            self.data = np.load(data_path).tolist()
-            embedding_path = os.path.join(vs_path, "embedding.npy")
-            self.embeddings = np.load(embedding_path)
+            data_path = os.path.join(vs_path, "data.pickle")
+            with open(data_path, "rb") as f:
+                pickle_data = pickle.load(f)
+            md5s = pickle_data['md5s']
+            data = pickle_data['data']
+            embeddings = pickle_data['vectors']
             end = time.time()
             logger.info(f"load vectors cost time:{end - start}")
         except Exception as e:
             logger.error(f":{e}")
-            return [],[]
-        return self.data, self.embeddings
+            return [],[],[]
+        return md5s, data, embeddings
     
     def del_vectors_base(self,kb_name:str):
+        '''
+        删除向量库
+        '''
         file_path = os.path.join(KB_ROOT_PATH, kb_name)
         if os.path.exists(file_path):
             shutil.rmtree(file_path)
+            return {"status":"success","message":"删除成功！"}
+        else:
+            return {"status":"error","message":"当前知识库不存在！"}
+        
+    def expand_vectors_base(self,kb_name,doc_file,max_word_count):
+        '''
+        扩充向量库
+        '''
+        # 判断当前上传文档和已有文档是否完全相同
+        md5_val = calculate_md5(doc_file)
+        # 加载旧的向量库和数据
+        old_md5s,old_data,old_embedding = self.load_vectors_base(kb_name)
+        if md5_val in old_md5s.keys():
+            return {"status":"error","message":"当前文档内容已在知识库中,无需添加！"}
+        # 加载文档
+        corpus = self.load_doc_files(doc_file)
+        if corpus is None or len(corpus) == 0:
+            return {"status":"error","message":"文档解析失败！"}
+        # 文档切块
+        data = self.corpus_to_chunks(corpus,max_word_count)
+        # 构建特征库
+        embeddings = self.get_trucks_embeddings(data)
+        if embeddings is None:
+            return {"status":"error","message":"生成向量库失败！"}
+        # 合并特征库
+        all_embeddings = np.concatenate((embeddings,old_embedding),axis=0)
+        all_data = data+old_data
+        file_name = str(time.time())+"_"+os.path.basename(doc_file)
+        old_md5s[md5_val] = file_name # 保存当前文件的md5
+        pickle_data  = {"md5s":old_md5s,"data":all_data,"vectors":all_embeddings} 
+        # 保存特征库
+        self.save_vectors_base(kb_name,pickle_data)
+        return {"status":"sucess","message":"向量库扩充成功！"}
+        
 
     def load_doc_files(self, doc_file: str):
         '''
         加载文档
         '''
-        if doc_file.endswith('.pdf'):
-            corpus = extract_text_from_pdf(doc_file)
-        elif doc_file.endswith('.docx'):
-            corpus = extract_text_from_docx(doc_file)
-        elif doc_file.endswith('.md'):
-            corpus = extract_text_from_markdown(doc_file)
-        else:
-            corpus = extract_text_from_txt(doc_file)
+        try:
+            if doc_file.endswith('.pdf'):
+                corpus = extract_text_from_pdf(doc_file)
+            elif doc_file.endswith('.docx'):
+                corpus = extract_text_from_docx(doc_file)
+            elif doc_file.endswith('.md'):
+                corpus = extract_text_from_markdown(doc_file)
+            else:
+                corpus = extract_text_from_txt(doc_file)
+        except Exception as e:
+            return []
         return corpus
 
-    def corpus_to_chunks(self,texts):
+    def corpus_to_chunks(self,texts,max_word_count):
         '''
         切分文档
         '''
         text_toks = [t.split(' ') for t in texts]
         chunks = []
         # 按字数统计
-        max_strlen = int(self.max_word_count)
+        max_strlen = int(max_word_count)
         text_toks = sum(text_toks,[])
         chunk = ""
         last_idx = 0
@@ -184,7 +232,7 @@ class ChatDoc():
         return topk_trucks
 
     def query(self,kb_name,question,topn):
-        data,embeddings = self.load_vectors_base(kb_name)
+        _,data,embeddings = self.load_vectors_base(kb_name)
         if len(data)==0 or len(embeddings)==0 or len(data) != len(embeddings):
             logger.error(f"加载的知识库信息：data:{len(data)},embeddings:{len(embeddings)}")
             return "","当前知识库文件存在问题，请重新创建！"
@@ -197,13 +245,14 @@ class ChatDoc():
             logger.error(e)
             return "","查询结果出错！"
         prompt = ""
-        prompt += f"问题：{question}"
+        prompt += f"\n###\n我的问题是：{question}"
         # 长文本
-        paragraph = f"\n###\n我提供的长文本："
+        paragraph = f"\n###\n我提供的资料："
         topn_results = ""
         for i,c in enumerate(topn_chunks):
             paragraph += c
             topn_results += f"【{i+1}】"+c+"\n"
+        paragraph += "\n###\n"
         try:
             logger.info("chatGPT组织答案...")
             _retry = True
@@ -218,12 +267,22 @@ class ChatDoc():
                         _retry = True
                         _rerty_count += 1
                         continue
-            answer_text = json.loads(answer)['choices'][0]['message']['content']
-            prefix = "输出："
-            index = answer_text.find(prefix)
-            index = index+len(prefix) if index > -1 else 0 
-            answer_text = answer_text[index:].replace("提取的关键词是：","").strip()
-            return topn_results,answer_text
+            answer_text = json.loads(answer)
+            if "error" in answer:
+                raise Exception (answer_text['error'])
+            else:
+                logger.info("chatGPT组织答案成功")
+                answer_text = answer_text['choices'][0]['message']['content']
+                try:
+                    answer_text = json.loads(answer_text)['答案片段']
+                except Exception as e:
+                    logger.error(e)
+                    if "答案片段" not in answer_text:
+                        return topn_results,answer_text
+                    else:
+                        answer_text = re.sub(r'[\x00-\x1F\x7F]', '', answer_text)
+                        answer_text = json.loads(answer_text)['答案片段']
+                return topn_results,answer_text
         except Exception as e:
             logger.error(e)
             return "","请求ChatGPT错误"
