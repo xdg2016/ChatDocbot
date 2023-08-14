@@ -76,7 +76,7 @@ def get_vs_list():
 def refresh_vs_list():
     return gr.update(choices=get_vs_list(),value= get_vs_list()[0] if len(get_vs_list()) > 0 else None)
 
-def add_new_knowledge_base(kb_name,file,chunk_size,chatbot,progress = gr.Progress(track_tqdm=True)):
+def add_new_knowledge_base(kb_name,file,chunk_size,chatbot):
     '''
     新建知识库
     '''
@@ -131,7 +131,7 @@ def change_knowledge_base(kb_name,chatbot):
     chatbot+= [(None,vs_status)]
     return chatbot,kb_name
 
-def expand_knowledge_base(kb_name,chatbot,file,max_word,progress = gr.Progress(track_tqdm=True)):
+def expand_knowledge_base(kb_name,chatbot,file,max_word):
     '''
     扩充指定知识库
     '''
@@ -267,5 +267,6 @@ with gr.Blocks() as demo:
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
-    demo.queue(concurrency_count=3).launch(server_name="0.0.0.0",server_port=8888,share=True)
+    # demo.queue(concurrency_count=3).launch(server_name="0.0.0.0",server_port=8888,share=True)
+    demo.launch(server_name="0.0.0.0",server_port=8888,share=True)
     
