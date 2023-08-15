@@ -232,6 +232,7 @@ class ChatDoc():
         return topk_trucks
 
     def query(self,kb_name,question,topn):
+        logger.info(f"当前知识库：《{kb_name}》")
         _,data,embeddings = self.load_vectors_base(kb_name)
         if len(data)==0 or len(embeddings)==0 or len(data) != len(embeddings):
             logger.error(f"加载的知识库信息：data:{len(data)},embeddings:{len(embeddings)}")
@@ -245,14 +246,14 @@ class ChatDoc():
             logger.error(e)
             return "","查询结果出错！"
         prompt = ""
-        prompt += f"\n###\n我的问题是：{question}"
+        prompt += f"\r\n###\r\n我的问题是：{question}"
         # 长文本
-        paragraph = f"\n###\n我提供的资料："
+        paragraph = f"\r\n###\r\n长文本内容是："
         topn_results = ""
         for i,c in enumerate(topn_chunks):
             paragraph += c
             topn_results += f"【{i+1}】"+c+"\n"
-        paragraph += "\n###\n"
+        paragraph += "\r\n###\r\n"
         try:
             logger.info("chatGPT组织答案...")
             _retry = True
@@ -271,8 +272,8 @@ class ChatDoc():
             if "error" in answer:
                 raise Exception (answer_text['error'])
             else:
-                logger.info("chatGPT组织答案成功")
                 answer_text = answer_text['choices'][0]['message']['content']
+                logger.info(f"chatGPT回答内容：{answer_text}")
                 try:
                     answer_text = json.loads(answer_text)['答案片段']
                 except Exception as e:

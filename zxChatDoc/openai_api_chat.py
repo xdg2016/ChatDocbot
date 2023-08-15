@@ -2,7 +2,7 @@ import time
 import json
 import os
 import requests
-from zxChatDoc.config import logger,USERINFO_TEMPLATE
+from zxChatDoc.config import logger,USERINFO_TEMPLATE,SYSINFO_TEMPLATE
 
 
 OPENAI_API_KEY1='e83cc1e656cf4c9090e0b6b3e13fcde3'
@@ -36,16 +36,9 @@ def test_request(text,paragraph):
     data={}
     messages = []
     # 系统消息
-    # sysinfo_path = os.path.join(os.path.dirname(__file__),"sysinfo.json")
-    # with open(sysinfo_path, 'r',encoding="utf-8") as f:
-    #   sysinfo = json.load(f)['info']
-    # sysinfo += paragraph
-    # 用户信息
-    # userinfo_path = os.path.join(os.path.dirname(__file__),"userinfo_new.txt")
-    # with open(userinfo_path, 'r',encoding="utf-8") as f:
-    #   userinfo = f.read()
-    userinfo =  USERINFO_TEMPLATE + text
-    messages.append({'role':'system', 'content':paragraph})
+    sysinfo = SYSINFO_TEMPLATE.format(paragraph)
+    userinfo =  USERINFO_TEMPLATE + paragraph + text
+    # messages.append({'role':'system', 'content':sysinfo})
     messages.append({'role':'user', 'content':userinfo})
     
     data['messages'] = messages
