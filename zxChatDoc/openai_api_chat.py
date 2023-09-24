@@ -48,7 +48,7 @@ def test_request(text,paragraph):
     logger.info('请求chatgpt结束!')
     logger.info('ChatGPT use time {} s'.format(endt-startt))
     if res.headers['content-type'] == 'application/json':
-        logger.info(res.text)
+        # logger.info(res.text)
         return res.text
     else:
         for line in res.iter_lines():

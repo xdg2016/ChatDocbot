@@ -197,7 +197,7 @@ def load(chatbot):
 doc_chatter = ChatDoc()
 title = '智能问答'
 description = """上传资料文档,根据文档内容查询答案"""
-description2 = "1.页面刷新后会重置聊天记录\n2.如果当前问题无法回答或者回答结果不完整，可以点击【重新回答】来重新生成答案"
+description2 = "1.输入框中输入问题内容，直接按回车开始回答  \n2.页面刷新后会重置聊天记录  \n3.如果当前问题无法回答或者回答结果不完整，可以点击【重新回答】来重新生成答案"
 
 with gr.Blocks() as demo:
     gr.Markdown(f'<center><h1>{title}</h1></center>')
@@ -205,7 +205,7 @@ with gr.Blocks() as demo:
     gr.Markdown(f"{description2}")
     vs_name = gr.State(get_vs_list()[0] if len(get_vs_list()) > 0 else None)   # 记录当前用户选择是哪个知识库
     uuid_num = gr.State()
-    with gr.Row():
+    with gr.Row(variant="panel"):
         with gr.Column(scale=2):
             chatbot = gr.Chatbot([[None, None]],
                                 elem_id="chat-box",
@@ -246,7 +246,7 @@ with gr.Blocks() as demo:
                                         outputs=[chatbot,select_vs,file_expand,vs_name])
                     
                 with gr.Accordion("查询的topn片段",open= False):
-                    topn_result = gr.TextArea(show_label=False).style(container=False)
+                    topn_result = gr.TextArea(show_label=False,max_lines=15).style(container=False)
             with gr.Tab("创建知识库"):
                 kb_name = gr.Textbox(label="知识库名称")
                 file = gr.File(label='上传文档，当前支持：txt,pdf,docx,markdown格式', file_types=['.txt', '.md', '.docx', '.pdf'])
@@ -267,6 +267,5 @@ with gr.Blocks() as demo:
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
-    # demo.queue(concurrency_count=3).launch(server_name="0.0.0.0",server_port=8888,share=True)
     demo.launch(server_name="0.0.0.0",server_port=8888,share=True)
     

@@ -9,17 +9,23 @@ import shutil
 import time
 import re
 import pickle
-import time
+import tiktoken
 
 # 本地化文档智能查询
 class ChatDoc():
-    def __init__(self,topk = TOPK,max_word_count = CHUNK_SIZE):
-        self.topk = topk
+    def __init__(self,max_word_count = CHUNK_SIZE,overlap = OVERLAP_SIZE):      
+        # 文档片段切分长度                  
         self.max_word_count = int(max_word_count)
+        # 文档片段重叠长度
+        self.overlap_count = int(overlap)
+        # embedding接口
         self.embed = openai_api_embedding.test_request
+        # ChatGPT接口
         self.chat = openai_api_chat.test_request
+        self.tiktoken_encode = tiktoken.encoding_for_model('text-embedding-ada-002')
         self.init_vectors = False
         self.vec_stored = False
+        # 向量相似度阈值
         self.simi_th = 0.7
 
     def add_vectors_base(self, kb_name, doc_file, max_word_count):
@@ -33,7 +39,9 @@ class ChatDoc():
         # 文档切块
         data = self.corpus_to_chunks(corpus,max_word_count)
         # 构建特征库
+        t1 = time.time()
         embeddings = self.get_trucks_embeddings(data)
+        print("total cost：",time.time()-t1)
         # 计算文件的md5值，用于后续重复上传判断
         md5_val = calculate_md5(doc_file)
         file_name = str(time.time())+"_"+os.path.basename(doc_file)
@@ -117,7 +125,6 @@ class ChatDoc():
         self.save_vectors_base(kb_name,pickle_data)
         return {"status":"sucess","message":"向量库扩充成功！"}
         
-
     def load_doc_files(self, doc_file: str):
         '''
         加载文档
@@ -139,21 +146,39 @@ class ChatDoc():
         '''
         切分文档
         '''
-        text_toks = [t.split(' ') for t in texts]
+        text_toks = [split_string(t) for t in texts]
         chunks = []
         # 按字数统计
-        max_strlen = int(max_word_count)
+        max_strlen = int(self.max_word_count)
         text_toks = sum(text_toks,[])
         chunk = ""
-        last_idx = 0
-        for idx, words in enumerate(text_toks):
+        idx = 0
+        w_token_lens = [] # 记录每一个句子的token数
+        while idx < len(text_toks):
+            words = text_toks[idx]
             chunk += words
-            if len(chunk) > max_strlen:
-                chunk = " ".join(text_toks[last_idx:idx+1]) 
+            idx += 1
+            # 按照token长度切分
+            w_token = self.tiktoken_encode.encode(words) # 单句的token数
+            token =self.tiktoken_encode.encode(chunk)
+            w_token_lens.append(len(w_token))
+            token_len  = len(token)
+            if token_len > max_strlen:
+                chunk = chunk.replace(words,"")
+                w_token_lens.pop()
+                idx -= 1
                 chunks.append(chunk)
-                last_idx = idx+1
+                # 从后往前计算覆盖片段
+                overlap_len = 0
+                while idx > 0:
+                    overlap_len += w_token_lens[idx-1]
+                    idx -= 1
+                    if overlap_len > self.overlap_count:
+                        idx += 1
+                        break
                 chunk = ""
         chunks.append(chunk)
+        logger.info(f"文档切分成 {len(chunks)} 块")
         return chunks
 
     def get_trucks_embeddings(self, texts, batch=16):
@@ -170,7 +195,9 @@ class ChatDoc():
             while _retry:
                 _retry = False
                 try:
+                    t1  = time.time()
                     emb_batch = self.embed(text_batch)
+                    print("batch cost:",time.time()-t1)
                     if type(emb_batch) != np.ndarray:
                         raise Exception("emb_batch is not np.ndarray")
                 except Exception as e:
@@ -188,7 +215,6 @@ class ChatDoc():
         '''
         获取最相似的topk个片段
         '''
-        self.topk = topn
         _retry = True
         _rerty_count = 0
         while _retry:
@@ -211,27 +237,33 @@ class ChatDoc():
         simis = cosine_similarity(inp_emb,embeddings)
         # 相似度排序
         simis_sorted = np.sort(simis)[:,::-1]
-        neighbors = np.argsort(simis)[:,::-1][0,:self.topk]
+        neighbors = np.argsort(simis)[:,::-1][0,:topn]
         # 前后平均(如果是top5,前后各取2，如果是top4,取前1，后2)
         # start = max(0,neighbors[0]- int(self.topk/2) if self.topk%2 != 0 else neighbors[0]-int(self.topk/2)+1)
         # end = min(len(simis[0]),neighbors[0]+int(self.topk/2)+1)
-
-        # 偏后
         top1 = neighbors[0]
-        start = max(0, top1 - 1)
-        end = min(len(simis[0]),top1+int(self.topk/2)+2 if self.topk%2 != 0 else top1+int(self.topk/2)+1)
-
-        neighbors = list(range(start, end))
+        # neighbors = list(range(start, end))
+        neighbors = sorted(neighbors)
         logger.info(f"topk:{top1} {neighbors}")
         logger.info(f"len_data:{len(data)},len_simis:{len(simis[0])}")
         assert len(data) == len(simis[0]),"维度不匹配"
         # 小于相似度阈值的，不返回结果
-        if simis_sorted[0][0] < self.simi_th and len(simis[0]) > self.topk:
+        if simis_sorted[0][0] < self.simi_th and len(simis[0]) > topn:
             return []
         topk_trucks = [data[i] for i in neighbors]
         return topk_trucks
 
-    def query(self,kb_name,question,topn):
+    def query(self,kb_name,question,topn=5):
+        '''
+        按照知识库查询问题
+        params:
+            :param kb_name: 知识库名称
+            :param question: 问题
+            :param topn: 查询排名topn的结果作为ChatGPT的长文本资料
+        return:
+            topn_results: 查询的topn资料片段
+            answer_text: ChatGPT返回的答案文本
+        '''
         logger.info(f"当前知识库：《{kb_name}》")
         _,data,embeddings = self.load_vectors_base(kb_name)
         if len(data)==0 or len(embeddings)==0 or len(data) != len(embeddings):
@@ -246,14 +278,14 @@ class ChatDoc():
             logger.error(e)
             return "","查询结果出错！"
         prompt = ""
-        prompt += f"\r\n###\r\n我的问题是：{question}"
+        prompt += f"\n###\n问题：{question}"
         # 长文本
-        paragraph = f"\r\n###\r\n长文本内容是："
+        
+        paragraphs = []
         topn_results = ""
         for i,c in enumerate(topn_chunks):
-            paragraph += c
+            paragraphs.append(c)
             topn_results += f"【{i+1}】"+c+"\n"
-        paragraph += "\r\n###\r\n"
         try:
             logger.info("chatGPT组织答案...")
             _retry = True
@@ -261,6 +293,7 @@ class ChatDoc():
             while _retry:
                 _retry = False
                 try:
+                    paragraph = f"\n###\n我提供的长文本列表：{paragraphs}"
                     answer = self.chat(prompt,paragraph)
                 except Exception as e:
                     logger.error(e)
@@ -275,14 +308,14 @@ class ChatDoc():
                 answer_text = answer_text['choices'][0]['message']['content']
                 logger.info(f"chatGPT回答内容：{answer_text}")
                 try:
-                    answer_text = json.loads(answer_text)['答案片段']
+                    answer_text = json.loads(answer_text)['答案']
                 except Exception as e:
                     logger.error(e)
-                    if "答案片段" not in answer_text:
+                    if "答案" not in answer_text:
                         return topn_results,answer_text
                     else:
                         answer_text = re.sub(r'[\x00-\x1F\x7F]', '', answer_text)
-                        answer_text = json.loads(answer_text)['答案片段']
+                        answer_text = json.loads(answer_text)['答案']
                 return topn_results,answer_text
         except Exception as e:
             logger.error(e)
