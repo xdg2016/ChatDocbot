@@ -295,7 +295,7 @@ class ChatDoc():
                     messages = []
                     # 系统消息
                     sysinfo = SYSINFO_TEMPLATE.format(paragraph)
-                    userinfo =  USERINFO_TEMPLATE + paragraph + prompt
+                    userinfo =  USERINFO_TEMPLATE.format(paragraph, prompt)
                     # messages.append({'role':'system', 'content':sysinfo})
                     messages.append({'role':'user', 'content':userinfo})
                     answer = self.chat(messages)
@@ -311,15 +311,6 @@ class ChatDoc():
             else:
                 answer_text = answer_text['choices'][0]['message']['content']
                 logger.info(f"chatGPT回答内容：{answer_text}")
-                try:
-                    answer_text = json.loads(answer_text)['答案']
-                except Exception as e:
-                    logger.error(e)
-                    if "答案" not in answer_text:
-                        return topn_results,answer_text
-                    else:
-                        answer_text = re.sub(r'[\x00-\x1F\x7F]', '', answer_text)
-                        answer_text = json.loads(answer_text)['答案']
                 return topn_results,answer_text
         except Exception as e:
             logger.error(e)
