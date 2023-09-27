@@ -153,19 +153,16 @@ class ChatDoc():
         text_toks = sum(text_toks,[])
         chunk = ""
         idx = 0
-        w_token_lens = [] # 记录每一个句子的token数
+        w_token_lens = [len(self.tiktoken_encode.encode(word)) for word in text_toks] # 记录每一个单句的token数
         while idx < len(text_toks):
             words = text_toks[idx]
             chunk += words
             idx += 1
             # 按照token长度切分
-            w_token = self.tiktoken_encode.encode(words) # 单句的token数
             token =self.tiktoken_encode.encode(chunk)
-            w_token_lens.append(len(w_token))
             token_len  = len(token)
             if token_len > max_strlen:
                 chunk = chunk.replace(words,"")
-                w_token_lens.pop()
                 idx -= 1
                 chunks.append(chunk)
                 # 从后往前计算覆盖片段
@@ -281,6 +278,8 @@ class ChatDoc():
         prompt += f"\n###\n问题：{question}"
         # 长文本
         
+        
+
         paragraphs = []
         topn_results = ""
         for i,c in enumerate(topn_chunks):
@@ -294,7 +293,14 @@ class ChatDoc():
                 _retry = False
                 try:
                     paragraph = f"\n###\n我提供的长文本列表：{paragraphs}"
-                    answer = self.chat(prompt,paragraph)
+                    
+                    messages = []
+                    # 系统消息
+                    sysinfo = SYSINFO_TEMPLATE.format(paragraph)
+                    userinfo =  USERINFO_TEMPLATE + paragraph + prompt
+                    # messages.append({'role':'system', 'content':sysinfo})
+                    messages.append({'role':'user', 'content':userinfo})
+                    answer = self.chat(messages)
                 except Exception as e:
                     logger.error(e)
                     if _rerty_count < 10:
