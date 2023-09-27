@@ -2,7 +2,7 @@ import time
 import json
 import os
 import requests
-from zxChatDoc.config import logger
+from zxChatDoc.config import logger,USERINFO_TEMPLATE,SYSINFO_TEMPLATE
 
 
 OPENAI_API_KEY1='e83cc1e656cf4c9090e0b6b3e13fcde3'
@@ -24,7 +24,7 @@ OPENAI_API_ENDPOINT = "https://openai-10-fc-01.openai.azure.com/"
 # ai-lab-gpt35-text  ai-lab-gpt-4 ai-lab-gpt-4-32k
 MODELS=['ai-lab-gpt-35-turbo','gpt-35-turbo-16k','ai-lab-gpt-4', 'ai-lab-gpt-4-32k']
 
-def test_request(messages:list):
+def test_request(text,paragraph):
     logger.info('请求chatgpt...')
     url= f'{OPENAI_API_ENDPOINT}openai/deployments/{MODELS[1]}/chat/completions?api-version={OPENAI_API_VERSION}'
     # logger.info(url)
@@ -34,6 +34,12 @@ def test_request(messages:list):
     headers_data['api-key']=OPENAI_API_KEY1
 
     data={}
+    messages = []
+    # 系统消息
+    sysinfo = SYSINFO_TEMPLATE.format(paragraph)
+    userinfo =  USERINFO_TEMPLATE + paragraph + text
+    # messages.append({'role':'system', 'content':sysinfo})
+    messages.append({'role':'user', 'content':userinfo})
     
     data['messages'] = messages
     startt = time.time()

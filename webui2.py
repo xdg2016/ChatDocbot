@@ -267,5 +267,5 @@ with gr.Blocks() as demo:
     
 if __name__ == '__main__':
     #openai.api_key = os.getenv('Your_Key_Here') 
-    demo.launch(server_name="0.0.0.0",server_port=8889,share=True)
+    demo.launch(server_name="0.0.0.0",server_port=8888,share=True)
     
