@@ -153,28 +153,37 @@ class ChatDoc():
         text_toks = sum(text_toks,[])
         chunk = ""
         idx = 0
-        w_token_lens = [len(self.tiktoken_encode.encode(word)) for word in text_toks] # 记录每一个单句的token数
+        # 记录上一次的段落开始的句子id
+        last_idx = 0    
+        # 记录每一个单句的token数
+        w_token_lens = [len(self.tiktoken_encode.encode(word)) for word in text_toks] 
         while idx < len(text_toks):
             words = text_toks[idx]
-            chunk += words
-            idx += 1
             # 按照token长度切分
-            token =self.tiktoken_encode.encode(chunk)
+            token = self.tiktoken_encode.encode(chunk+words)
             token_len  = len(token)
-            if token_len > max_strlen:
-                chunk = chunk.replace(words,"")
-                idx -= 1
-                chunks.append(chunk)
+            if token_len > max_strlen: 
+                # 可能出现单句长度大于阈值,则chunk可能为""
+                if chunk:
+                    chunks.append(chunk)
+                else:
+                    chunks.append(words)
+                chunk = ""
                 # 从后往前计算覆盖片段
                 overlap_len = 0
-                while idx > 0:
-                    overlap_len += w_token_lens[idx-1]
-                    idx -= 1
+                while idx > last_idx:
                     if overlap_len > self.overlap_count:
-                        idx += 1
+                        last_idx = idx+1
                         break
-                chunk = ""
-        chunks.append(chunk)
+                    else:
+                        overlap_len += w_token_lens[idx]
+                    idx -= 1
+            else:
+                chunk += words
+            idx += 1
+        # 添加上最后一段
+        if chunk:
+            chunks.append(chunk)
         logger.info(f"文档切分成 {len(chunks)} 块")
         return chunks
 

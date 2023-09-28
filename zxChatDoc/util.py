@@ -56,7 +56,7 @@ def get_kb_embedding_path(file_name):
 
 def split_string(string):
     '''按照各种可能的标点，将长句切分为多个短句'''
-    string = re.sub(r'([,，.。？?；;——......、]["’”」』]{0,2})([^,，.])', r'\1#\2', string)
+    string = re.sub(r'([,，.。？?；;：:！!——......、\n\r\t]["’”」』]{0,2})([^,，.])', r'\1#\2', string)
     string = string.split("#")
     return string
 
